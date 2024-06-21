@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:js_interop_unsafe';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -57,50 +58,66 @@ class _RestDemoScreenState extends State<RestDemoScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           for (Post post in controller.postList)
-                            Container(
-                              width: 450,
-                              height: 40,
-                              padding: const EdgeInsets.all(8),
-                              margin: const EdgeInsets.only(bottom: 8),
-                              decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.blueAccent),
-                                  borderRadius: BorderRadius.circular(16)),
-                              child: TextButton(
-                                style: ButtonStyle(),
-                                onPressed: () async {
-                                  Post? fullPost =
-                                      await controller.getPostbyID(post.id);
-                                  if (fullPost != null) {
-                                    showDialog(
-                                        context: context,
-                                        builder: (BuildContext context) {
-                                          return AlertDialog(
-                                            title: Text(fullPost.title),
-                                            content: SingleChildScrollView(
-                                              child: ListBody(
-                                                children: <Widget>[
-                                                  Text("ID: ${fullPost.id}"),
-                                                  SizedBox(height: 10),
-                                                  Text(fullPost.body),
-                                                ],
+                            Row(children: [
+                              Container(
+                                width: 450,
+                                height: 40,
+                                padding: const EdgeInsets.all(8),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                    border:
+                                        Border.all(color: Colors.blueAccent),
+                                    borderRadius: BorderRadius.circular(16)),
+                                child: TextButton(
+                                  style: ButtonStyle(),
+                                  onPressed: () async {
+                                    Post? fullPost =
+                                        await controller.getPostbyID(post.id);
+                                    if (fullPost != null) {
+                                      showDialog(
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              title: Text(fullPost.title),
+                                              content: SingleChildScrollView(
+                                                child: ListBody(
+                                                  children: <Widget>[
+                                                    Text("ID: ${fullPost.id}"),
+                                                    SizedBox(height: 10),
+                                                    Text(fullPost.body),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                            actions: <Widget>[
-                                              TextButton(
-                                                child: Text('Close'),
-                                                onPressed: () {
-                                                  Navigator.of(context).pop();
-                                                  controller.getPosts();
-                                                },
-                                              ),
-                                            ],
-                                          );
-                                        });
-                                  }
-                                },
-                                child: Text(post.title.toString()),
+                                              actions: <Widget>[
+                                                TextButton(
+                                                  child: Text('Edit'),
+                                                  onPressed: () {
+                                                    // Navigator.of(context).pop();
+                                                    // controller.getPosts();
+                                                  },
+                                                ),
+                                                TextButton(
+                                                  child: Text('Close'),
+                                                  onPressed: () {
+                                                    Navigator.of(context).pop();
+                                                    controller.getPosts();
+                                                  },
+                                                ),
+                                              ],
+                                            );
+                                          });
+                                    }
+                                  },
+                                  child: Text(post.title.toString()),
+                                ),
                               ),
-                            )
+                              IconButton(
+                                  onPressed: () {
+                                    controller.deletePost(post.id);
+                                    controller.getPosts();
+                                  },
+                                  icon: const Icon(Icons.delete))
+                            ])
                         ],
                       )),
                 );
@@ -266,6 +283,53 @@ class PostController with ChangeNotifier {
 
       Map<String, dynamic> ids = jsonDecode(res.body);
       return Post.fromJson(ids);
+    } catch (e, st) {
+      print(e);
+      print(st);
+      error = e;
+      working = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deletePost(int id) async {
+    try {
+      working = true;
+      clear();
+      http.Response res = await http
+          .delete(Uri.parse("https://jsonplaceholder.typicode.com/posts/$id"));
+      if (res.statusCode != 200 && res.statusCode != 204) {
+        throw Exception("${res.statusCode} | ${res.body}");
+      }
+
+      posts.remove("$id");
+      working = false;
+      notifyListeners();
+    } catch (e, st) {
+      print(e);
+      print(st);
+      error = e;
+      working = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> EditPost(int id) async {
+    try {
+      working = true;
+      clear();
+      http.Response res = await http
+          .patch(Uri.parse("https://jsonplaceholder.typicode.com/posts/$id"));
+      if (res.statusCode != 200 && res.statusCode != 204) {
+        throw Exception("${res.statusCode} | ${res.body}");
+      }
+
+      // Update the post
+      final updatedPost = Post.fromJson(jsonDecode(res.body));
+      posts[updatedPost.id.toString()] = updatedPost;
+
+      working = false;
+      notifyListeners();
     } catch (e, st) {
       print(e);
       print(st);
