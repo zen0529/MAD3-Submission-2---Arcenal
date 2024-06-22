@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:js_interop_unsafe';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:http/http.dart' as http;
@@ -29,112 +27,85 @@ class _RestDemoScreenState extends State<RestDemoScreen> {
       appBar: AppBar(
         title: const Text("Posts"),
         leading: IconButton(
-            onPressed: () {
-              controller.getPosts();
-            },
-            icon: const Icon(Icons.refresh)),
+          onPressed: () {
+            controller.getPosts();
+          },
+          icon: const Icon(Icons.refresh),
+        ),
         actions: [
           IconButton(
-              onPressed: () {
-                showNewPostFunction(context);
-              },
-              icon: const Icon(Icons.add))
+            onPressed: () {
+              showNewPostFunction(context);
+            },
+            icon: const Icon(Icons.add),
+          ),
         ],
       ),
       body: SafeArea(
         child: ListenableBuilder(
-            listenable: controller,
-            builder: (context, _) {
-              if (controller.error != null) {
-                return Center(
-                  child: Text(controller.error.toString()),
-                );
-              }
-              if (!controller.working) {
-                return Center(
-                  child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (Post post in controller.postList)
-                            Row(children: [
-                              Container(
-                                width: 450,
-                                height: 40,
-                                padding: const EdgeInsets.all(8),
-                                margin: const EdgeInsets.only(bottom: 8),
-                                decoration: BoxDecoration(
-                                    border:
-                                        Border.all(color: Colors.blueAccent),
-                                    borderRadius: BorderRadius.circular(16)),
-                                child: TextButton(
-                                  style: ButtonStyle(),
-                                  onPressed: () async {
-                                    Post? fullPost =
-                                        await controller.getPostbyID(post.id);
-                                    if (fullPost != null) {
-                                      showDialog(
-                                          context: context,
-                                          builder: (BuildContext context) {
-                                            return AlertDialog(
-                                              title: Text(fullPost.title),
-                                              content: SingleChildScrollView(
-                                                child: ListBody(
-                                                  children: <Widget>[
-                                                    Text("ID: ${fullPost.id}"),
-                                                    SizedBox(height: 10),
-                                                    Text(fullPost.body),
-                                                  ],
-                                                ),
-                                              ),
-                                              actions: <Widget>[
-                                                TextButton(
-                                                  child: Text('Edit'),
-                                                  onPressed: () {
-                                                    // Navigator.of(context).pop();
-                                                    // controller.getPosts();
-                                                  },
-                                                ),
-                                                TextButton(
-                                                  child: Text('Close'),
-                                                  onPressed: () {
-                                                    Navigator.of(context).pop();
-                                                    controller.getPosts();
-                                                  },
-                                                ),
-                                              ],
-                                            );
-                                          });
-                                    }
-                                  },
-                                  child: Text(post.title.toString()),
-                                ),
-                              ),
-                              IconButton(
-                                  onPressed: () {
-                                    controller.deletePost(post.id);
-                                    controller.getPosts();
-                                  },
-                                  icon: const Icon(Icons.delete))
-                            ])
-                        ],
-                      )),
-                );
-              }
-              return const Center(
-                child: SpinKitChasingDots(
-                  size: 54,
-                  color: Colors.black87,
-                ),
+          listenable: controller,
+          builder: (context, _) {
+            if (controller.error != null) {
+              return Center(
+                child: Text(controller.error.toString()),
               );
-            }),
+            }
+            if (!controller.working) {
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: controller.postList.length,
+                itemBuilder: (context, index) {
+                  Post post = controller.postList[index];
+                  return ListTile(
+                    title: Text(post.title),
+                    // subtitle: Text(post.body),
+                    onTap: () {
+                      showPostDetail(context, post);
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () {
+                            showEditPostFunction(context, post);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () {
+                            controller.deletePost(post.id);
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }
+
+            return const Center(
+              child: SpinKitChasingDots(
+                size: 54,
+                color: Colors.black87,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   showNewPostFunction(BuildContext context) {
     AddPostDialog.show(context, controller: controller);
+  }
+
+  showEditPostFunction(BuildContext context, Post post) {
+    EditPostDialog.show(context, controller: controller, post: post);
+  }
+
+  showPostDetail(BuildContext context, Post post) {
+    PostDetailDialog.show(context, post: post);
   }
 }
 
@@ -197,6 +168,95 @@ class _AddPostDialogState extends State<AddPostDialog> {
   }
 }
 
+class EditPostDialog extends StatefulWidget {
+  static show(BuildContext context,
+          {required PostController controller, required Post post}) =>
+      showDialog(
+          context: context,
+          builder: (dContext) => EditPostDialog(controller, post));
+  const EditPostDialog(this.controller, this.post, {super.key});
+
+  final PostController controller;
+  final Post post;
+
+  @override
+  State<EditPostDialog> createState() => _EditPostDialogState();
+}
+
+class _EditPostDialogState extends State<EditPostDialog> {
+  late TextEditingController bodyC, titleC;
+
+  @override
+  void initState() {
+    super.initState();
+    bodyC = TextEditingController(text: widget.post.body);
+    titleC = TextEditingController(text: widget.post.title);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      title: const Text("Edit post"),
+      actions: [
+        ElevatedButton(
+          onPressed: () async {
+            widget.controller.editPost(
+                id: widget.post.id,
+                title: titleC.text.trim(),
+                body: bodyC.text.trim(),
+                userId: widget.post.userId);
+            Navigator.of(context).pop();
+          },
+          child: const Text("Save"),
+        )
+      ],
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Title"),
+          Flexible(
+            child: TextFormField(
+              controller: titleC,
+            ),
+          ),
+          const Text("Content"),
+          Flexible(
+            child: TextFormField(
+              controller: bodyC,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PostDetailDialog extends StatelessWidget {
+  static show(BuildContext context, {required Post post}) => showDialog(
+      context: context, builder: (dContext) => PostDetailDialog(post));
+  const PostDetailDialog(this.post, {super.key});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(post.title),
+      content: Text(post.body),
+      actions: [
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text("Close"),
+        ),
+      ],
+    );
+  }
+}
+
 class PostController with ChangeNotifier {
   Map<String, dynamic> posts = {};
   bool working = true;
@@ -217,17 +277,12 @@ class PostController with ChangeNotifier {
     try {
       working = true;
       if (error != null) error = null;
-      print(title);
-      print(body);
-      print(userId);
       http.Response res = await HttpService.post(
           url: "https://jsonplaceholder.typicode.com/posts",
           body: {"title": title, "body": body, "userId": userId});
       if (res.statusCode != 200 && res.statusCode != 201) {
         throw Exception("${res.statusCode} | ${res.body}");
       }
-
-      print(res.body);
 
       Map<String, dynamic> result = jsonDecode(res.body);
 
@@ -237,8 +292,6 @@ class PostController with ChangeNotifier {
       notifyListeners();
       return output;
     } catch (e, st) {
-      print(e);
-      print(st);
       error = e;
       working = false;
       notifyListeners();
@@ -263,29 +316,6 @@ class PostController with ChangeNotifier {
       working = false;
       notifyListeners();
     } catch (e, st) {
-      print(e);
-      print(st);
-      error = e;
-      working = false;
-      notifyListeners();
-    }
-  }
-
-  Future<Post?> getPostbyID(int id) async {
-    try {
-      working = true;
-      clear();
-      http.Response res = await HttpService.get(
-          url: "https://jsonplaceholder.typicode.com/posts/$id");
-      if (res.statusCode != 200 && res.statusCode != 201) {
-        throw Exception("${res.statusCode} | ${res.body}");
-      }
-
-      Map<String, dynamic> ids = jsonDecode(res.body);
-      return Post.fromJson(ids);
-    } catch (e, st) {
-      print(e);
-      print(st);
       error = e;
       working = false;
       notifyListeners();
@@ -295,44 +325,29 @@ class PostController with ChangeNotifier {
   Future<void> deletePost(int id) async {
     try {
       working = true;
-      clear();
-      http.Response res = await http
-          .delete(Uri.parse("https://jsonplaceholder.typicode.com/posts/$id"));
-      if (res.statusCode != 200 && res.statusCode != 204) {
-        throw Exception("${res.statusCode} | ${res.body}");
-      }
-
-      posts.remove("$id");
+      posts.remove(id.toString());
       working = false;
       notifyListeners();
     } catch (e, st) {
-      print(e);
-      print(st);
       error = e;
       working = false;
       notifyListeners();
     }
   }
 
-  Future<void> EditPost(int id) async {
+  Future<void> editPost(
+      {required int id,
+      required String title,
+      required String body,
+      required int userId}) async {
     try {
       working = true;
-      clear();
-      http.Response res = await http
-          .patch(Uri.parse("https://jsonplaceholder.typicode.com/posts/$id"));
-      if (res.statusCode != 200 && res.statusCode != 204) {
-        throw Exception("${res.statusCode} | ${res.body}");
-      }
-
-      // Update the post
-      final updatedPost = Post.fromJson(jsonDecode(res.body));
-      posts[updatedPost.id.toString()] = updatedPost;
-
+      if (error != null) error = null;
+      Post updatedPost = Post(id: id, title: title, body: body, userId: userId);
+      posts[id.toString()] = updatedPost;
       working = false;
       notifyListeners();
     } catch (e, st) {
-      print(e);
-      print(st);
       error = e;
       working = false;
       notifyListeners();
@@ -363,8 +378,6 @@ class UserController with ChangeNotifier {
       working = false;
       notifyListeners();
     } catch (e, st) {
-      print(e);
-      print(st);
       error = e;
       working = false;
       notifyListeners();
